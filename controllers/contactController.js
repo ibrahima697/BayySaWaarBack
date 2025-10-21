@@ -7,7 +7,20 @@ export async function submitContact(req, res, next) {
   try {
     const contact = new Contact({ ...req.body, ticketId: uuidv4() });
     await contact.save();
-    await sendEmail('admin@baysawaar.com', `Nouveau ticket: ${contact.ticketId}`, `Catégorie: ${contact.category}\nMessage: ${contact.message}`);
+    
+    // Envoi d'email de notification à l'admin
+    try {
+      await sendEmail(
+        'admin@baysawaar.com', 
+        `Nouveau ticket: ${contact.ticketId}`, 
+        `Nouveau message de contact reçu:\n\nTicket ID: ${contact.ticketId}\nNom: ${contact.name}\nEmail: ${contact.email}\nCatégorie: ${contact.category}\nMessage: ${contact.message}\n\nDate: ${new Date().toLocaleString()}`
+      );
+      console.log('✅ Email de notification envoyé à l\'admin');
+    } catch (emailError) {
+      console.error('⚠️ Erreur lors de l\'envoi de l\'email de notification:', emailError);
+      // On continue même si l'email échoue, le message est déjà sauvegardé
+    }
+    
     res.status(201).json({ message: 'Message soumis', ticketId: contact.ticketId });
   } catch (err) {
     next(err);
@@ -34,9 +47,19 @@ export async function subscribeNewsletter(req, res, next) {
     await subscription.save();
     console.log('✅ Abonnement sauvegardé');
     
-    // Envoi d'email désactivé temporairement
-    console.log('📧 Envoi d\'email désactivé temporairement');
-    // TODO: Réactiver l'envoi d'email une fois la configuration corrigée
+    // Envoi d'email de confirmation
+    try {
+      console.log('📧 Envoi de l\'email de confirmation...');
+      await sendEmail(
+        email, 
+        'Bienvenue à la newsletter BAY SA WAAR', 
+        `Bonjour,\n\nMerci de vous être abonné à notre newsletter ! Vous recevrez désormais nos dernières actualités et offres spéciales.\n\nCordialement,\nL'équipe BAY SA WAAR`
+      );
+      console.log('✅ Email de confirmation envoyé');
+    } catch (emailError) {
+      console.error('⚠️ Erreur lors de l\'envoi de l\'email de confirmation:', emailError);
+      // On continue même si l'email échoue, l'abonnement est déjà sauvegardé
+    }
     
     res.status(201).json({ message: 'Abonnement réussi' });
   } catch (err) {

@@ -661,3 +661,25 @@
 2025-09-08T09:07:17.900Z - ERROR - Error: Déjà abonné
     at subscribeNewsletter (file:///Users/macbookpro/Desktop/BayySaWaar/baysawarr/controllers/contactController.js:21:25)
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-09-10T17:35:27.611Z - ERROR - TokenExpiredError: jwt expired
+    at /Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/jsonwebtoken/verify.js:190:21
+    at getSecret (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/jsonwebtoken/verify.js:97:14)
+    at module.exports [as verify] (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/jsonwebtoken/verify.js:101:10)
+    at getMe (file:///Users/macbookpro/Desktop/BayySaWaar/baysawarr/controllers/authController.js:47:25)
+    at Layer.handle [as handle_request] (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/layer.js:95:5)
+    at next (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/layer.js:95:5)
+    at /Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/index.js:346:12)
+2025-09-10T17:35:27.682Z - ERROR - TokenExpiredError: jwt expired
+    at /Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/jsonwebtoken/verify.js:190:21
+    at getSecret (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/jsonwebtoken/verify.js:97:14)
+    at module.exports [as verify] (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/jsonwebtoken/verify.js:101:10)
+    at getMe (file:///Users/macbookpro/Desktop/BayySaWaar/baysawarr/controllers/authController.js:47:25)
+    at Layer.handle [as handle_request] (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/layer.js:95:5)
+    at next (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/layer.js:95:5)
+    at /Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/Users/macbookpro/Desktop/BayySaWaar/baysawarr/node_modules/express/lib/router/index.js:346:12)
