@@ -102,7 +102,7 @@ export const filterUsers = async (req, res, next) => {
 export const getUserStats = async (req, res, next) => {
   try {
     const totalUsers = await User.countDocuments();
-    const roles = ['partner', 'distributor', 'admin'];
+    const roles = ['partner', 'member', 'admin'];
     const roleCounts = {};
     for (const role of roles) {
       roleCounts[role] = await User.countDocuments({ role });

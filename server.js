@@ -13,6 +13,8 @@ import dashboardRoutes from './routes/dashboard.js';
 import socialRoutes from './routes/social.js';
 import adminRoutes from './routes/admin.js';
 import errorHandler from './middlewares/errorHandler.js';
+import formationRoutes from './routes/formations.js';
+import eventRoutes from './routes/event.js';
 
 dotenv.config();
 
@@ -42,6 +44,8 @@ app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/formations', formationRoutes);
+app.use('/api/events', eventRoutes);
 
 app.use(errorHandler);
 

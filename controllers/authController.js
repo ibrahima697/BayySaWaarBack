@@ -38,19 +38,46 @@ export const login = async (req, res, next) => {
   }
 };
 
+// authController.js
 export const getMe = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ message: 'Aucun token fourni' });
     }
+
+    const token = authHeader.split(' ')[1];
+    if (!token || token === 'null' || token === 'undefined') {
+      return res.status(401).json({ message: 'Token invalide' });
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId).select('-password');
+
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
-    res.json({ data: user });
+
+    res.json({ 
+      data: {
+        id: user._id.toString(), // ← AJOUTÉ
+        _id: user._id, // ← Garde l'ObjectId
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        phone: user.phone,
+        // ... autres champs
+      }
+    });
   } catch (err) {
+    console.error('getMe error:', err.message);
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Token malformé' });
+    }
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expiré' });
+    }
     next(err);
   }
 };
@@ -200,7 +227,7 @@ export const getUserStats = async (req, res, next) => {
   try {
     if (req.userRole !== 'admin') throw new Error('Accès interdit');
     const totalUsers = await User.countDocuments();
-    const roles = ['partner', 'distributor', 'client', 'admin'];
+    const roles = ['partner', 'member', 'client', 'admin'];
     const roleCounts = {};
     for (const role of roles) {
       roleCounts[role] = await User.countDocuments({ role });

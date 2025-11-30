@@ -5,36 +5,28 @@ import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { formatUploadData } from '../middlewares/cloudinaryUpload.js';
+import jwt from 'jsonwebtoken';
 
-// Charger les variables d'environnement
 dotenv.config();
 
 export const submitEnrollment = async (req, res, next) => {
   try {
     const {
-      type,
       firstName,
       lastName,
       email,
       phone,
       country,
       city,
-      companyName,
-      businessType,
-      distributionArea,
-      targetMarkets,
-      industry,
-      companySize,
-      interests,
+      companyName = '',
+      interests = [],               // <-- tableau par défaut
     } = req.body;
 
-    // Validation côté serveur
-    if (!type || !['partner', 'distributor'].includes(type)) {
-      return res.status(400).json({ error: 'Type d\'enrôlement invalide' });
-    }
-    
-    if (!firstName || !lastName || !email || !phone || !country || !city || !companyName || !businessType) {
-      return res.status(400).json({ error: 'Tous les champs obligatoires doivent être remplis' });
+    // ==== 1. Validation des champs obligatoires ====
+    if (!firstName || !lastName || !email || !phone || !country || !city) {
+      return res.status(400).json({
+        error: 'Les champs obligatoires doivent être remplis : Prénom, Nom, Email, Téléphone, Pays, Ville',
+      });
     }
 
     // Validation email
@@ -43,19 +35,18 @@ export const submitEnrollment = async (req, res, next) => {
       return res.status(400).json({ error: 'Format d\'email invalide' });
     }
 
-    // Récupérer les données d'upload d'images
-    const uploadData = formatUploadData(req);
+    // ==== 2. Traitement des images (optionnelles) ====
+    const uploadData = formatUploadData(req); // { companyLogo: url, businessDocuments: [url,…] }
 
-    // Vérifier si l'email existe déjà
+    // ==== 3. Vérifier si l'email existe déjà ====
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: 'Cet email est déjà utilisé' });
     }
 
-    // Créer un utilisateur automatiquement
-    const password = crypto.randomBytes(8).toString('hex'); // Génère un mot de passe aléatoire
+    // ==== 4. Créer l'utilisateur automatiquement ====
+  const password = crypto.randomBytes(8).toString('hex');
     const hashedPassword = await bcrypt.hash(password, 10);
-    const role = type; // Rôle basé sur le type (partner ou distributor)
 
     const user = new User({
       firstName,
@@ -63,45 +54,56 @@ export const submitEnrollment = async (req, res, next) => {
       email,
       password: hashedPassword,
       phone,
-      role,
-      photo: uploadData.companyLogo || null, // Utiliser le logo de l'entreprise comme photo de profil
-      companyDetails: {
-        name: companyName,
-        type: businessType,
-      },
+      role: 'member',
+      photo: uploadData.companyLogo || null,
+      companyDetails: companyName ? { name: companyName } : null,
     });
     await user.save();
 
-    // Créer l'enrôlement
+    // ==== GÉNÉRER LE TOKEN ====
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' } // plus long pour les nouveaux membres
+    );
+    
+    // ==== 5. Normaliser les intérêts ====
+    let parsedInterests = [];
+
+    if (Array.isArray(interests)) {
+      parsedInterests = interests;
+    } else if (typeof interests === 'string') {
+      try {
+        parsedInterests = JSON.parse(interests);
+      } catch (e) {
+        return res.status(400).json({ error: 'Champ interests invalide' });
+      }
+    }
+    // (si autre type → on garde un tableau vide)
+
+    // ==== 6. Créer l'enrôlement ====
     const enrollmentData = {
-      type,
       firstName,
       lastName,
       email,
       phone,
       country,
       city,
-      companyName,
-      businessType,
-      distributionArea,
-      targetMarkets,
-      industry,
-      companySize,
-      interests,
+      companyName: companyName || null,
+      interests: parsedInterests,
       userId: user._id,
       status: 'pending',
-      // Ajouter les données d'images
-      ...uploadData,
+      companyLogo: uploadData.companyLogo || null,
+      businessDocuments: uploadData.businessDocuments || [],
     };
 
     const enrollment = new Enrollment(enrollmentData);
     await enrollment.save();
 
-    // Vérifier les identifiants email
+    // ==== 7. Envoi des emails ====
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error('Erreur: EMAIL_USER ou EMAIL_PASS manquant dans .env');
+      console.error('EMAIL_USER ou EMAIL_PASS manquant dans .env');
     } else {
-      // Créer le transporter à l'intérieur de la fonction
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
@@ -110,35 +112,79 @@ export const submitEnrollment = async (req, res, next) => {
         },
       });
 
-      // Envoyer l'email de confirmation à l'utilisateur
+      // ---- Email à l'utilisateur ----
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Confirmation de votre demande d’inscription',
-        text: `Bonjour ${firstName},\n\nMerci pour votre demande d’inscription en tant que ${type} chez BAY SA WAAR. Votre demande est en cours de traitement.\n\nVoici vos identifiants de connexion:\nEmail: ${email}\nMot de passe: ${password}\n\nVeuillez vous connecter à http://localhost:5173/login pour accéder à votre compte et changer votre mot de passe.\n\nCordialement,\nL'équipe BAY SA  WAAR`,
-      });     
+        subject: 'Bienvenue chez BAY SA WAAR – Votre compte est prêt !',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #059669;">Bonjour ${firstName} !</h2>
+            <p>Merci pour votre inscription en tant que <strong>membre</strong> de <strong>BAY SA WAAR</strong>.</p>
+            <p>Votre demande est <strong>en cours de validation</strong>. Une fois approuvée, vous aurez accès à :</p>
+            <ul>
+              <li>Formations gratuites (transformation des céréales, fruits, légumes)</li>
+              <li>Programmes d'autonomisation des femmes</li>
+              <li>Accompagnement à la formalisation</li>
+              <li>Offres exclusives Fabira Trading</li>
+            </ul>
+            <div style="background:#f3f4f6;padding:15px;border-radius:8px;margin:20px 0;">
+              <p><strong>Vos identifiants de connexion :</strong></p>
+              <p><strong>Email :</strong> ${email}</p>
+              <p><strong>Mot de passe :</strong> <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px;">${password}</code></p>
+            </div>
+            <p>
+              <a href="https://bayy-sa-waar-front.vercel.app/login" style="background:#059669;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;">
+                Se connecter maintenant
+              </a>
+            </p>
+            <p style="margin-top:20px;color:#666;font-size:0.9em;">
+              <strong>Conseil :</strong> Changez votre mot de passe après la première connexion.
+            </p>
+            <hr style="margin:30px 0;border:0;border-top:1px solid #eee;">
+            <p style="color:#999;font-size:0.8em;">L'équipe BAY SA WAAR<br>contact@baysawaar.sn</p>
+          </div>
+        `,
+      });
 
-      // Tenter d'envoyer l'email
+      // ---- Email à l'admin ----
       try {
         await transporter.sendMail({
           from: process.env.EMAIL_USER,
           to: 'iguisse97@gmail.com',
-          subject: `Nouvelle demande d'inscription - ${type}`,
-          text: `Type: ${type}\nNom: ${firstName} ${lastName}\nEmail: ${email}\nTéléphone: ${phone}\nPays: ${country}\nVille: ${city}\nEntreprise: ${companyName}`,
+          subject: 'Nouvelle inscription membre - BAY SA WAAR',
+          html: `
+            <h3>Nouvelle demande d'inscription</h3>
+            <p><strong>Nom :</strong> ${firstName} ${lastName}</p>
+            <p><strong>Email :</strong> ${email}</p>
+            <p><strong>Téléphone :</strong> ${phone}</p>
+            <p><strong>Localisation :</strong> ${city}, ${country}</p>
+            <p><strong>Entreprise :</strong> ${companyName || 'Non renseignée'}</p>
+            <p><strong>Intérêts :</strong> ${parsedInterests.join(', ') || 'Aucun'}</p>
+            <hr>
+            <p><a href="https://bayy-sa-waar-front.vercel.app/admin/enrollments">Voir dans le dashboard admin</a></p>
+          `,
         });
-        console.log('Email envoyé avec succès');
+        console.log('Email admin envoyé');
       } catch (emailErr) {
-        console.error('Erreur lors de l’envoi de l’email:', emailErr);
+        console.error('Erreur email admin:', emailErr);
       }
     }
 
-    res.status(201).json({ message: 'Demande soumise' });
+    // ==== 8. Réponse ====
+    res.status(201).json({
+      message: 'Inscription soumise avec succès',
+      enrollmentId: enrollment._id,
+    });
   } catch (err) {
+    console.error('Erreur submitEnrollment:', err);
     next(err);
   }
 };
 
-
+/* ------------------------------------------------------------------ */
+/* Les autres fonctions restent inchangées (getAll, getById, …)       */
+/* ------------------------------------------------------------------ */
 export const getAllEnrollments = async (req, res, next) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
@@ -146,7 +192,8 @@ export const getAllEnrollments = async (req, res, next) => {
     const enrollments = await Enrollment.find(query)
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .populate('userId', 'firstName lastName email');
     const total = await Enrollment.countDocuments(query);
     res.json({ enrollments, total });
   } catch (err) {
@@ -156,10 +203,8 @@ export const getAllEnrollments = async (req, res, next) => {
 
 export const getEnrollmentById = async (req, res, next) => {
   try {
-    const enrollment = await Enrollment.findById(req.params.id);
-    if (!enrollment) {
-      return res.status(404).json({ error: 'Inscription non trouvée' });
-    }
+    const enrollment = await Enrollment.findById(req.params.id).populate('userId');
+    if (!enrollment) return res.status(404).json({ error: 'Inscription non trouvée' });
     res.json(enrollment);
   } catch (err) {
     next(err);
@@ -168,11 +213,29 @@ export const getEnrollmentById = async (req, res, next) => {
 
 export const updateEnrollment = async (req, res, next) => {
   try {
-    const enrollment = await Enrollment.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    if (!enrollment) {
-      return res.status(404).json({ error: 'Inscription non trouvée' });
+    const { status } = req.body;
+    const enrollment = await Enrollment.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true, runValidators: true }
+    );
+    if (!enrollment) return res.status(404).json({ error: 'Inscription non trouvée' });
+
+    if (status === 'approved') {
+      const user = await User.findById(enrollment.userId);
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: 'Votre inscription est approuvée !',
+        text: `Félicitations ${user.firstName} ! Votre compte est actif. Connectez-vous sur https://bayy-sa-waar-front.vercel.app/login`,
+      });
     }
-    res.json({ message: 'Inscription mise à jour', enrollment });
+
+    res.json({ message: 'Statut mis à jour', enrollment });
   } catch (err) {
     next(err);
   }
@@ -181,9 +244,7 @@ export const updateEnrollment = async (req, res, next) => {
 export const deleteEnrollment = async (req, res, next) => {
   try {
     const enrollment = await Enrollment.findByIdAndDelete(req.params.id);
-    if (!enrollment) {
-      return res.status(404).json({ error: 'Inscription non trouvée' });
-    }
+    if (!enrollment) return res.status(404).json({ error: 'Inscription non trouvée' });
     res.json({ message: 'Inscription supprimée' });
   } catch (err) {
     next(err);
@@ -192,17 +253,14 @@ export const deleteEnrollment = async (req, res, next) => {
 
 export const getEnrollmentStatus = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.userId) {
-      return res.status(400).json({ error: 'User ID not found in request' });
+    // Maintenant req.user est l'objet User complet → on utilise _id
+    if (!req.user?._id) {
+      return res.status(401).json({ error: 'Utilisateur non authentifié' });
     }
-    
-    const userId = req.user.userId;
-    const enrollments = await Enrollment.find({ userId: userId });
-    
+
+    const enrollments = await Enrollment.find({ userId: req.user._id });
     res.json(enrollments);
   } catch (err) {
-    console.error('Error in getEnrollmentStatus:', err);
     next(err);
   }
 };
-

@@ -1,68 +1,207 @@
 import { body, validationResult } from 'express-validator';
 
+// Middleware générique pour gérer les erreurs
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    return res.status(400).json({
+      message: 'Données invalides',
+      errors: errors.array().map(err => ({
+        field: err.param,
+        message: err.msg,
+      })),
+    });
   }
   next();
 };
 
-const registerValidation = [
-  body('firstName').notEmpty().withMessage('Prénom requis'),
-  body('lastName').notEmpty().withMessage('Nom requis'),
-  body('email').isEmail().withMessage('Email invalide'),
-  body('password').isLength({ min: 6 }).withMessage('Mot de passe doit avoir 6+ caractères'),
-  body('role').isIn(['user', 'partner', 'distributor', 'admin']).withMessage('Rôle invalide'),
-  body('companyDetails.name').optional().notEmpty().withMessage('Nom de l’entreprise requis si fourni'),
-  body('companyDetails.type').optional().notEmpty().withMessage('Type d’entreprise requis si fourni'),
-  body('companyDetails.years').optional().isInt({ min: 0 }).withMessage('Années d’expérience invalides'),
+// === 1. Validation pour l'inscription (enrôlement) ===
+export const enrollmentValidation = [
+  // Champs obligatoires
+  body('firstName')
+    .notEmpty()
+    .withMessage('Prénom requis')
+    .bail()
+    .isLength({ min: 2 })
+    .withMessage('Prénom trop court'),
+
+  body('lastName')
+    .notEmpty()
+    .withMessage('Nom requis')
+    .bail()
+    .isLength({ min: 2 })
+    .withMessage('Nom trop court'),
+
+  body('email')
+    .isEmail()
+    .withMessage('Email invalide')
+    .bail()
+    .normalizeEmail(),
+
+  body('phone')
+    .notEmpty()
+    .withMessage('Téléphone requis')
+    .bail()
+    .isMobilePhone('any')
+    .withMessage('Numéro de téléphone invalide'),
+
+  body('country')
+    .notEmpty()
+    .withMessage('Pays requis'),
+
+  body('city')
+    .notEmpty()
+    .withMessage('Ville requise'),
+
+  // Champs optionnels
+  body('companyName')
+    .optional()
+    .isLength({ min: 2 })
+    .withMessage('Nom de l’entreprise trop court'),
+
+  body('interests')
+    .optional()
+    .isArray({ min: 0 })
+    .withMessage('Les intérêts doivent être un tableau')
+    .bail()
+    .custom((arr) => arr.every(i => typeof i === 'string' && i.length > 0))
+    .withMessage('Chaque intérêt doit être une chaîne non vide'),
+
   handleValidationErrors,
 ];
 
-const enrollmentValidation = [
-  body('type').isIn(['partner', 'distributor']).withMessage('Type invalide'),
-  body('firstName').notEmpty().withMessage('Prénom requis'),
-  body('lastName').notEmpty().withMessage('Nom requis'),
-  body('email').isEmail().withMessage('Email invalide'),
-  body('phone').notEmpty().withMessage('Téléphone requis'),
-  body('country').notEmpty().withMessage('Pays requis'),
-  body('city').notEmpty().withMessage('Ville requise'),
-  body('companyName').notEmpty().withMessage('Nom de l’entreprise requis'),
-  body('businessType').notEmpty().withMessage('Type d’entreprise requis'),
-  body('website').optional().isURL().withMessage('URL du site web invalide'),
-  body('description').optional().notEmpty().withMessage('Description requise si fournie'),
-  body('distributionArea').if(body('type').equals('distributor')).notEmpty().withMessage('Zone de distribution requise pour distributeur'),
-  body('targetMarkets').if(body('type').equals('distributor')).notEmpty().withMessage('Marchés cibles requis pour distributeur'),
-  body('industry').if(body('type').equals('client')).notEmpty().withMessage('Industrie requise pour client'),
-  body('companySize').if(body('type').equals('client')).notEmpty().withMessage('Taille de l’entreprise requise pour client'),
-  body('interests').if(body('type').equals('client')).isArray().withMessage('Intérêts doivent être un tableau'),
+// === 2. Validation pour l'inscription admin (register) ===
+export const registerValidation = [
+  body('firstName')
+    .notEmpty()
+    .withMessage('Prénom requis')
+    .bail()
+    .isLength({ min: 2 })
+    .withMessage('Prénom trop court'),
+
+  body('lastName')
+    .notEmpty()
+    .withMessage('Nom requis')
+    .bail()
+    .isLength({ min: 2 })
+    .withMessage('Nom trop court'),
+
+  body('email')
+    .isEmail()
+    .withMessage('Email invalide')
+    .bail()
+    .normalizeEmail(),
+
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Mot de passe doit avoir 6+ caractères'),
+
+  body('role')
+    .optional()
+    .isIn(['admin', 'member'])
+    .withMessage('Rôle invalide'),
+
+  body('companyDetails.name')
+    .optional()
+    .notEmpty()
+    .withMessage('Nom de l’entreprise requis si fourni'),
+
   handleValidationErrors,
 ];
 
-const productValidation = [
-  body('name').notEmpty().withMessage('Nom produit requis'),
-  body('description').notEmpty().withMessage('Description requise'),
-  body('price').isFloat({ min: 0 }).withMessage('Prix invalide'),
-  body('stock').isInt({ min: 0 }).withMessage('Stock invalide'),
-  body('category').optional().notEmpty().withMessage('Catégorie requise si fournie'),
+// === 3. Validation Produits ===
+export const productValidation = [
+  body('name')
+    .notEmpty()
+    .withMessage('Nom du produit requis')
+    .bail()
+    .isLength({ min: 3 })
+    .withMessage('Nom trop court'),
+
+  body('description')
+    .notEmpty()
+    .withMessage('Description requise')
+    .bail()
+    .isLength({ min: 10 })
+    .withMessage('Description trop courte'),
+
+  body('price')
+    .isFloat({ min: 0 })
+    .withMessage('Prix invalide'),
+
+  body('stock')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Stock invalide'),
+
+  body('category')
+    .optional()
+    .notEmpty()
+    .withMessage('Catégorie requise si fournie'),
+
   handleValidationErrors,
 ];
 
-const blogValidation = [
-  body('title').notEmpty().withMessage('Titre requis'),
-  body('content').notEmpty().withMessage('Contenu requis'),
-  body('author').notEmpty().withMessage('Auteur requis'),
-  body('category').optional().notEmpty().withMessage('Catégorie requise si fournie'),
-  body('tags').optional().isArray().withMessage('Tags doivent être un tableau'),
+// === 4. Validation Blog ===
+export const blogValidation = [
+  body('title')
+    .notEmpty()
+    .withMessage('Titre requis')
+    .bail()
+    .isLength({ min: 5 })
+    .withMessage('Titre trop court'),
+
+  body('content')
+    .notEmpty()
+    .withMessage('Contenu requis')
+    .bail()
+    .isLength({ min: 50 })
+    .withMessage('Contenu trop court'),
+
+  body('author')
+    .notEmpty()
+    .withMessage('Auteur requis'),
+
+  body('category')
+    .optional()
+    .notEmpty()
+    .withMessage('Catégorie requise si fournie'),
+
+  body('tags')
+    .optional()
+    .isArray()
+    .withMessage('Tags doivent être un tableau'),
+
   handleValidationErrors,
 ];
 
-const contactValidation = [
-  body('email').isEmail().withMessage('Email invalide'),
-  body('message').notEmpty().withMessage('Message requis'),
-  body('category').isIn(['information', 'partnership', 'support']).withMessage('Catégorie invalide'),
+// === 5. Validation Contact ===
+export const contactValidation = [
+  body('email')
+    .isEmail()
+    .withMessage('Email invalide')
+    .bail()
+    .normalizeEmail(),
+
+  body('message')
+    .notEmpty()
+    .withMessage('Message requis')
+    .bail()
+    .isLength({ min: 10 })
+    .withMessage('Message trop court'),
+
+  body('category')
+    .optional()
+    .isIn(['information', 'partnership', 'support', 'formation'])
+    .withMessage('Catégorie invalide'),
+
   handleValidationErrors,
 ];
 
-export default { registerValidation, enrollmentValidation, productValidation, blogValidation, contactValidation };
+export default {
+  enrollmentValidation,
+  registerValidation,
+  productValidation,
+  blogValidation,
+  contactValidation,
+};
